@@ -11,7 +11,7 @@ export class MailerService {
   constructor(private readonly configService: ConfigService<AllConfigType>) {
     const mailUser = configService.get('mail.user', { infer: true });
     const mailPassword = configService.get('mail.password', { infer: true });
-    
+
     const transportConfig: any = {
       host: configService.get('mail.host', { infer: true }),
       port: configService.get('mail.port', { infer: true }),
