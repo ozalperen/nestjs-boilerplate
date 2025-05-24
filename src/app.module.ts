@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { UsersModule } from './users/users.module';
 import { FilesModule } from './files/files.module';
 import { AuthModule } from './auth/auth.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import databaseConfig from './database/config/database.config';
 import authConfig from './auth/config/auth.config';
 import appConfig from './config/app.config';
@@ -80,6 +81,7 @@ const infrastructureDatabaseModule = TypeOrmModule.forRootAsync({
     AuthFacebookModule,
     AuthGoogleModule,
     AuthAppleModule,
+    AuditLogsModule,
     SessionModule,
     MailModule,
     MailerModule,

@@ -11,6 +11,7 @@ import {
   HttpStatus,
   HttpCode,
   SerializeOptions,
+  Request,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -35,6 +36,8 @@ import { User } from './domain/user';
 import { UsersService } from './users.service';
 import { RolesGuard } from '../roles/roles.guard';
 import { infinityPagination } from '../utils/infinity-pagination';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { IpAddressHelper } from '../utils/ip-address.helper';
 
 @ApiBearerAuth()
 @Roles(RoleEnum.admin)
@@ -45,7 +48,10 @@ import { infinityPagination } from '../utils/infinity-pagination';
   version: '1',
 })
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly auditLogsService: AuditLogsService,
+  ) {}
 
   @ApiCreatedResponse({
     type: User,
@@ -55,8 +61,25 @@ export class UsersController {
   })
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createProfileDto: CreateUserDto): Promise<User> {
-    return this.usersService.create(createProfileDto);
+  async create(
+    @Body() createProfileDto: CreateUserDto,
+    @Request() request,
+  ): Promise<User> {
+    const adminUser = request.user;
+    const ipAddress = IpAddressHelper.getClientIp(request);
+    const userAgent = IpAddressHelper.getUserAgent(request);
+
+    const newUser = await this.usersService.create(createProfileDto);
+
+    // Log user creation
+    await this.auditLogsService.logUserCreate(
+      adminUser,
+      newUser,
+      ipAddress,
+      userAgent,
+    );
+
+    return newUser;
   }
 
   @ApiOkResponse({
@@ -119,11 +142,31 @@ export class UsersController {
     type: String,
     required: true,
   })
-  update(
+  async update(
     @Param('id') id: User['id'],
     @Body() updateProfileDto: UpdateUserDto,
+    @Request() request,
   ): Promise<User | null> {
-    return this.usersService.update(id, updateProfileDto);
+    const adminUser = request.user;
+    const ipAddress = IpAddressHelper.getClientIp(request);
+    const userAgent = IpAddressHelper.getUserAgent(request);
+
+    // Get the user before update to log the changes
+    const existingUser = await this.usersService.findById(id);
+    const updatedUser = await this.usersService.update(id, updateProfileDto);
+
+    if (updatedUser && existingUser) {
+      // Log user update
+      await this.auditLogsService.logUserUpdate(
+        adminUser,
+        updatedUser,
+        ipAddress,
+        userAgent,
+        { updatedFields: Object.keys(updateProfileDto) },
+      );
+    }
+
+    return updatedUser;
   }
 
   @Delete(':id')
@@ -133,7 +176,24 @@ export class UsersController {
     required: true,
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: User['id']): Promise<void> {
-    return this.usersService.remove(id);
+  async remove(@Param('id') id: User['id'], @Request() request): Promise<void> {
+    const adminUser = request.user;
+    const ipAddress = IpAddressHelper.getClientIp(request);
+    const userAgent = IpAddressHelper.getUserAgent(request);
+
+    // Get the user before deletion for logging
+    const userToDelete = await this.usersService.findById(id);
+
+    await this.usersService.remove(id);
+
+    if (userToDelete) {
+      // Log user deletion
+      await this.auditLogsService.logUserDelete(
+        adminUser,
+        userToDelete,
+        ipAddress,
+        userAgent,
+      );
+    }
   }
 }
