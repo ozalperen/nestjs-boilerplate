@@ -65,19 +65,23 @@ export class UsersController {
     @Body() createProfileDto: CreateUserDto,
     @Request() request,
   ): Promise<User> {
-    const adminUser = request.user;
+    const adminUserJwt = request.user;
     const ipAddress = IpAddressHelper.getClientIp(request);
     const userAgent = IpAddressHelper.getUserAgent(request);
 
+    // Fetch full admin user details for better audit logging
+    const adminUser = await this.usersService.findById(adminUserJwt.id);
     const newUser = await this.usersService.create(createProfileDto);
 
     // Log user creation
-    await this.auditLogsService.logUserCreate(
-      adminUser,
-      newUser,
-      ipAddress,
-      userAgent,
-    );
+    if (adminUser) {
+      await this.auditLogsService.logUserCreate(
+        adminUser,
+        newUser,
+        ipAddress,
+        userAgent,
+      );
+    }
 
     return newUser;
   }
@@ -92,6 +96,7 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   async findAll(
     @Query() query: QueryUserDto,
+    @Request() request,
   ): Promise<InfinityPaginationResponseDto<User>> {
     const page = query?.page ?? 1;
     let limit = query?.limit ?? 10;
@@ -99,7 +104,14 @@ export class UsersController {
       limit = 50;
     }
 
-    return infinityPagination(
+    const adminUserJwt = request.user;
+    const ipAddress = IpAddressHelper.getClientIp(request);
+    const userAgent = IpAddressHelper.getUserAgent(request);
+
+    // Fetch full admin user details for better audit logging
+    const adminUser = await this.usersService.findById(adminUserJwt.id);
+
+    const result = infinityPagination(
       await this.usersService.findManyWithPagination({
         filterOptions: query?.filters,
         sortOptions: query?.sort,
@@ -110,6 +122,28 @@ export class UsersController {
       }),
       { page, limit },
     );
+
+    // Log user list access
+    if (adminUser) {
+      await this.auditLogsService.create({
+        user: adminUser,
+        action: 'API_ACCESS' as any,
+        description: `Admin user ${adminUser.email || adminUser.id} accessed user list`,
+        ipAddress,
+        userAgent,
+        endpoint: '/users',
+        method: 'GET',
+        metadata: {
+          page,
+          limit,
+          totalUsers: result.data.length,
+          filters: query?.filters,
+          sort: query?.sort,
+        },
+      });
+    }
+
+    return result;
   }
 
   @ApiOkResponse({
@@ -147,15 +181,18 @@ export class UsersController {
     @Body() updateProfileDto: UpdateUserDto,
     @Request() request,
   ): Promise<User | null> {
-    const adminUser = request.user;
+    const adminUserJwt = request.user;
     const ipAddress = IpAddressHelper.getClientIp(request);
     const userAgent = IpAddressHelper.getUserAgent(request);
+
+    // Fetch full admin user details for better audit logging
+    const adminUser = await this.usersService.findById(adminUserJwt.id);
 
     // Get the user before update to log the changes
     const existingUser = await this.usersService.findById(id);
     const updatedUser = await this.usersService.update(id, updateProfileDto);
 
-    if (updatedUser && existingUser) {
+    if (updatedUser && existingUser && adminUser) {
       // Log user update
       await this.auditLogsService.logUserUpdate(
         adminUser,
@@ -177,16 +214,19 @@ export class UsersController {
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: User['id'], @Request() request): Promise<void> {
-    const adminUser = request.user;
+    const adminUserJwt = request.user;
     const ipAddress = IpAddressHelper.getClientIp(request);
     const userAgent = IpAddressHelper.getUserAgent(request);
+
+    // Fetch full admin user details for better audit logging
+    const adminUser = await this.usersService.findById(adminUserJwt.id);
 
     // Get the user before deletion for logging
     const userToDelete = await this.usersService.findById(id);
 
     await this.usersService.remove(id);
 
-    if (userToDelete) {
+    if (userToDelete && adminUser) {
       // Log user deletion
       await this.auditLogsService.logUserDelete(
         adminUser,
