@@ -10,13 +10,36 @@ services:
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
       POSTGRES_DB: ${DATABASE_NAME}
 
-  maildev:
-    build:
-      context: .
-      dockerfile: maildev.Dockerfile
+  # Use a proper SMTP service instead of maildev
+  # For development, you can use services like:
+  # - Gmail SMTP (smtp.gmail.com:587)
+  # - SendGrid SMTP (smtp.sendgrid.net:587)
+  # - Mailgun SMTP (smtp.mailgun.org:587)
+  # - Or any other SMTP provider
+  
+  # For local development/testing, you can use MailHog:
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
     ports:
-      - ${MAIL_CLIENT_PORT}:1080
-      - ${MAIL_PORT}:1025
+      - "${MAIL_PORT:-1025}:1025"    # SMTP port for sending emails
+      - "${MAIL_CLIENT_PORT:-8025}:8025"  # Web interface port for viewing emails
+    environment:
+      - MH_STORAGE=maildir
+      - MH_MAILDIR_PATH=/tmp
+    volumes:
+      - mailhog-data:/tmp
+    
+  # Alternative: Use a real SMTP service (comment out mailhog above and uncomment this)
+  # smtp-relay:
+  #   image: namshi/smtp:latest
+  #   environment:
+  #     - RELAY_NETWORKS=:192.168.0.0/16:10.0.0.0/8:172.16.0.0/12
+  #     - SMARTHOST_ADDRESS=${SMTP_HOST}
+  #     - SMARTHOST_PORT=${SMTP_PORT:-587}
+  #     - SMARTHOST_USER=${SMTP_USER}
+  #     - SMARTHOST_PASSWORD=${SMTP_PASSWORD}
+  #   ports:
+  #     - "${MAIL_PORT:-1025}:25"
 
   # adminer:
   #   image: adminer
@@ -38,3 +61,4 @@ services:
 
 volumes:
   boilerplate-db:
+  mailhog-data:
