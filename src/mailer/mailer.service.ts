@@ -9,17 +9,26 @@ import { AllConfigType } from '../config/config.type';
 export class MailerService {
   private readonly transporter: nodemailer.Transporter;
   constructor(private readonly configService: ConfigService<AllConfigType>) {
-    this.transporter = nodemailer.createTransport({
+    const mailUser = configService.get('mail.user', { infer: true });
+    const mailPassword = configService.get('mail.password', { infer: true });
+    
+    const transportConfig: any = {
       host: configService.get('mail.host', { infer: true }),
       port: configService.get('mail.port', { infer: true }),
       ignoreTLS: configService.get('mail.ignoreTLS', { infer: true }),
       secure: configService.get('mail.secure', { infer: true }),
       requireTLS: configService.get('mail.requireTLS', { infer: true }),
-      auth: {
-        user: configService.get('mail.user', { infer: true }),
-        pass: configService.get('mail.password', { infer: true }),
-      },
-    });
+    };
+
+    // Only add auth if both user and password are provided
+    if (mailUser && mailPassword) {
+      transportConfig.auth = {
+        user: mailUser,
+        pass: mailPassword,
+      };
+    }
+
+    this.transporter = nodemailer.createTransport(transportConfig);
   }
 
   async sendMail({
