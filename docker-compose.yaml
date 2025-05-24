@@ -18,23 +18,23 @@ services:
       - ${MAIL_CLIENT_PORT}:1080
       - ${MAIL_PORT}:1025
 
-  adminer:
-    image: adminer
-    restart: always
-    ports:
-      - 8080:8080
+  # adminer:
+  #   image: adminer
+  #   restart: always
+  #   ports:
+  #     - 8080:8080
 
   redis:
     image: redis:7-alpine
     ports:
       - 6379:6379
 
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - ${APP_PORT}:${APP_PORT}
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - ${APP_PORT}:${APP_PORT}
 
 volumes:
   boilerplate-db:
